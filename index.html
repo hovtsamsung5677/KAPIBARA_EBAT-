@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#fff3e0">
+    <title>Ферма капибар</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-overlay"></div>
+    <div id="builder-screen" class="hidden">
+        <div id="builder-header">
+            <button id="builder-back-btn" class="btn btn-builder-back">← Ферма</button>
+            <h1 id="builder-title">Строительство фермы</h1>
+            <div id="builder-currency">0 <img class="currency-icon-inline" src="assets/ui/currency-icon.png" alt=""></div>
+        </div>
+        <div id="builder-stats" class="ui-panel">
+            <span>🏗 Построено: <b id="builder-count">0</b>/14</span>
+            <span>📈 Бонус к доходу: <b id="builder-income-bonus">+0%</b></span>
+        </div>
+        <div id="builder-grid-wrapper">
+            <div id="builder-grid"></div>
+        </div>
+    </div>
+    <div id="admin-banner">РЕЖИМ АДМИНА</div>
+    <div id="admin-panel">
+        <button class="btn btn-buy" id="admin-add-currency">+1 000 000 🍊</button>
+        <button class="btn btn-upgrade" id="admin-unlock-buildings">Открыть все здания (ур. 1)</button>
+        <button class="btn btn-upgrade" id="admin-max-helpers">Помощники ур. 20</button>
+        <button class="btn btn-reward" id="admin-unlock-achievements">Все достижения</button>
+        <button class="btn" id="admin-reset-save">Сбросить сохранение</button>
+    </div>
+    <div id="loading-screen">
+        <div class="loader-content">
+            <img class="loader-capybara" src="assets/ui/loading.png" alt="Загрузка">
+            <p>Загрузка...</p>
+        </div>
+    </div>
+    <script async src="/sdk.js" onload="initSDK()"></script>
+    <script src="js/config.js"></script>
+    <script src="js/buildings-config.js"></script>
+    <script src="js/format.js"></script>
+    <script src="js/achievements.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/sdk.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
