@@ -403,15 +403,38 @@ const ui = {
         const grid = document.getElementById('builder-grid');
         if (!grid) return;
         grid.innerHTML = '';
-        const rect = grid.getBoundingClientRect();
+        const containerRect = grid.parentElement.getBoundingClientRect();
+        const bg = new Image();
+        bg.src = 'assets/background/town_fon.png';
+        const containerW = containerRect.width;
+        const containerH = containerRect.height;
+        let renderedW = containerW;
+        let renderedH = containerH;
+        let offsetX = 0;
+        let offsetY = 0;
+        if (bg.naturalWidth && bg.naturalHeight) {
+            const imageAspect = bg.naturalWidth / bg.naturalHeight;
+            const containerAspect = containerW / containerH;
+            if (imageAspect > containerAspect) {
+                renderedW = containerW;
+                renderedH = containerW / imageAspect;
+                offsetX = 0;
+                offsetY = (containerH - renderedH) / 2;
+            } else {
+                renderedH = containerH;
+                renderedW = containerH * imageAspect;
+                offsetX = (containerW - renderedW) / 2;
+                offsetY = 0;
+            }
+        }
         BUILDING_SLOTS.forEach(slot => {
             const cell = document.createElement('div');
             cell.className = 'builder-cell' + (game.grid[slot.id] ? ' occupied' : '');
             cell.style.position = 'absolute';
-            cell.style.left = (slot.xRatio * rect.width) + 'px';
-            cell.style.top = (slot.yRatio * rect.height) + 'px';
-            cell.style.width = (slot.wRatio * rect.width) + 'px';
-            cell.style.height = (slot.hRatio * rect.height) + 'px';
+            cell.style.left = (offsetX + slot.xRatio * renderedW) + 'px';
+            cell.style.top = (offsetY + slot.yRatio * renderedH) + 'px';
+            cell.style.width = (slot.wRatio * renderedW) + 'px';
+            cell.style.height = (slot.hRatio * renderedH) + 'px';
             cell.dataset.slotId = slot.id;
             const data = game.grid[slot.id];
             if (data) {

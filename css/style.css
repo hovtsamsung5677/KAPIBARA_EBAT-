@@ -127,7 +127,7 @@ html, body {
     inset: 0;
     z-index: 60;
     background: #FFF8E1;
-    background-image: url('assets/background/1789126634.png');
+    background-image: url('../assets/background/town_fon.png');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
