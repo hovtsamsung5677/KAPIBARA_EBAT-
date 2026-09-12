@@ -1,7 +1,27 @@
+function getContainedImageRect(containerRect, naturalWidth, naturalHeight) {
+    const containerRatio = containerRect.width / containerRect.height;
+    const imageRatio = naturalWidth / naturalHeight;
+    let width, height;
+    if (imageRatio > containerRatio) {
+        width = containerRect.width;
+        height = width / imageRatio;
+    } else {
+        height = containerRect.height;
+        width = height * imageRatio;
+    }
+    return {
+        width,
+        height,
+        offsetX: (containerRect.width - width) / 2,
+        offsetY: (containerRect.height - height) / 2
+    };
+}
+
 const ui = {
     overlay: null,
     currencyPanel: null,
     currencyCount: null,
+    diamondCount: null,
     incomeDisplay: null,
     helpersPanel: null,
     rewardPanel: null,
@@ -9,6 +29,7 @@ const ui = {
     achievementsBtn: null,
     leaderboardBtn: null,
     builderBtn: null,
+    diamondBtn: null,
     modalOverlay: null,
     toastTimer: null,
 
@@ -22,6 +43,13 @@ const ui = {
 
         this.currencyCount = document.getElementById('currency-count');
         this.incomeDisplay = document.getElementById('income-display');
+
+        this.diamondPanel = document.createElement('div');
+        this.diamondPanel.id = 'diamond-panel';
+        this.diamondPanel.className = 'ui-panel';
+        this.diamondPanel.innerHTML = '<div id="diamond-count">0 <img class="currency-icon-diamond" src="' + ASSET_PATHS.diamondIcon + '" alt=""></div>';
+        this.overlay.appendChild(this.diamondPanel);
+        this.diamondCount = document.getElementById('diamond-count');
 
         this.rewardPanel = document.createElement('div');
         this.rewardPanel.id = 'reward-panel';
@@ -51,16 +79,11 @@ const ui = {
         this.builderBtn.addEventListener('click', () => this.openBuilder());
         this.overlay.appendChild(this.builderBtn);
 
-        const btnAdminAddCurrency = document.getElementById('admin-add-currency');
-        if (btnAdminAddCurrency) btnAdminAddCurrency.addEventListener('click', adminAddCurrency);
-        const btnAdminUnlockBuildings = document.getElementById('admin-unlock-buildings');
-        if (btnAdminUnlockBuildings) btnAdminUnlockBuildings.addEventListener('click', adminUnlockBuildings);
-        const btnAdminMaxHelpers = document.getElementById('admin-max-helpers');
-        if (btnAdminMaxHelpers) btnAdminMaxHelpers.addEventListener('click', adminMaxHelpers);
-        const btnAdminUnlockAchievements = document.getElementById('admin-unlock-achievements');
-        if (btnAdminUnlockAchievements) btnAdminUnlockAchievements.addEventListener('click', adminUnlockAchievements);
-        const btnAdminResetSave = document.getElementById('admin-reset-save');
-        if (btnAdminResetSave) btnAdminResetSave.addEventListener('click', adminResetSave);
+        this.diamondBtn = document.createElement('button');
+        this.diamondBtn.id = 'diamond-btn';
+        this.diamondBtn.innerHTML = '<img class="diamond-btn-icon" src="' + ASSET_PATHS.diamondIcon + '" alt="Алмазы">';
+        this.diamondBtn.addEventListener('click', () => this.openDiamondShop());
+        this.overlay.appendChild(this.diamondBtn);
 
         this.helpersPanel = document.createElement('div');
         this.helpersPanel.id = 'helpers-panel';
@@ -87,6 +110,21 @@ const ui = {
 
         this.renderHelpers();
         this.renderRewardButtons();
+
+        if (typeof ResizeObserver !== 'undefined') {
+            this.builderResizeObserver = new ResizeObserver(() => {
+                const builderScreen = document.getElementById('builder-screen');
+                if (builderScreen && !builderScreen.classList.contains('hidden')) {
+                    this.renderBuilderGrid();
+                    this.updateBuilderCurrency();
+                    this.updateBuilderStats();
+                }
+            });
+            const builderGrid = document.getElementById('builder-grid');
+            if (builderGrid) {
+                this.builderResizeObserver.observe(builderGrid);
+            }
+        }
     },
 
     toggleSound() {
@@ -101,6 +139,9 @@ const ui = {
 
     update(currency, income) {
         this.currencyCount.textContent = formatNumber(Math.floor(currency)) + ' ' + GAME_CONFIG.currencyName;
+        if (this.diamondCount) {
+            this.diamondCount.innerHTML = formatNumber(Math.floor(game.diamonds)) + ' <img class="currency-icon-diamond" src="' + ASSET_PATHS.diamondIcon + '" alt="">';
+        }
         if (income < 100) {
             this.incomeDisplay.textContent = income.toFixed(1) + ' ' + GAME_CONFIG.currencyName + ' в секунду';
         } else {
@@ -173,13 +214,6 @@ const ui = {
         btnOffline.addEventListener('click', () => this.handleOfflineEarnings());
         this.rewardPanel.appendChild(btnOffline);
 
-        const btnReward = document.createElement('button');
-        btnReward.className = 'btn btn-reward';
-        btnReward.id = 'reward-btn';
-        btnReward.textContent = 'x2 доход (60с)';
-        btnReward.addEventListener('click', () => this.handleRewardedVideo());
-        this.rewardPanel.appendChild(btnReward);
-
         if (game.isPrestigeAvailable()) {
             const btnPrestige = document.createElement('button');
             btnPrestige.className = 'btn btn-prestige';
@@ -239,10 +273,30 @@ const ui = {
         });
     },
 
+    handleDiamondAd() {
+        const now = Date.now();
+        const cooldownMs = game.getDiamondAdCooldownMs();
+        if (now - game.lastDiamondAdTime < cooldownMs) {
+            const remainingSec = Math.ceil((cooldownMs - (now - game.lastDiamondAdTime)) / 1000);
+            this.showModal('Подождите', `Следующая реклама будет доступна через ${remainingSec} сек.`);
+            return;
+        }
+        showRewardedVideo(() => {
+            game.diamonds += 5;
+            game.lastDiamondAdTime = Date.now();
+            this.update(game.currency, game.getPassiveIncome());
+        });
+    },
+
     handleOfflineEarnings() {
         const amount = game.getOfflineEarningsAmount();
         if (amount <= 0) {
             this.showModal('Оффлайн-доход', 'Нет накопленного дохода.');
+            return;
+        }
+        if (game.isAutoOfflineCollect()) {
+            game.calculateOfflineEarnings();
+            this.showModal('Оффлайн-доход', `Вы заработали ${formatNumber(amount)} ${GAME_CONFIG.currencyName}!`);
             return;
         }
         showRewardedVideo(() => {
@@ -368,9 +422,6 @@ const ui = {
         document.getElementById('builder-screen').classList.remove('hidden');
         document.getElementById('gameCanvas').classList.add('hidden');
         document.getElementById('ui-overlay').classList.add('hidden');
-        this.renderBuilderGrid();
-        this.updateBuilderCurrency();
-        this.updateBuilderStats();
         const backBtn = document.getElementById('builder-back-btn');
         if (backBtn) {
             backBtn.onclick = () => this.closeBuilder();
@@ -385,7 +436,8 @@ const ui = {
 
     updateBuilderCurrency() {
         const el = document.getElementById('builder-currency');
-        if (el) el.innerHTML = formatNumber(Math.floor(game.currency)) + ' <img class="currency-icon-inline" src="' + ASSET_PATHS.currencyIcon + '" alt="">';
+        if (el) el.innerHTML = formatNumber(Math.floor(game.currency)) + ' <img class="currency-icon-inline" src="' + ASSET_PATHS.currencyIcon + '" alt=""> ' +
+            '<span class="builder-diamonds"><img class="currency-icon-diamond" src="' + ASSET_PATHS.diamondIcon + '" alt=""> ' + formatNumber(Math.floor(game.diamonds)) + '</span>';
     },
 
     updateBuilderStats() {
@@ -401,59 +453,54 @@ const ui = {
 
     renderBuilderGrid() {
         const grid = document.getElementById('builder-grid');
-        if (!grid) return;
+        const bgImg = document.getElementById('builder-bg-img');
+        if (!grid || !bgImg) return;
         grid.innerHTML = '';
-        const containerRect = grid.parentElement.getBoundingClientRect();
-        const bg = new Image();
-        bg.src = 'assets/background/town_fon.png';
-        const containerW = containerRect.width;
-        const containerH = containerRect.height;
-        let renderedW = containerW;
-        let renderedH = containerH;
-        let offsetX = 0;
-        let offsetY = 0;
-        if (bg.naturalWidth && bg.naturalHeight) {
-            const imageAspect = bg.naturalWidth / bg.naturalHeight;
-            const containerAspect = containerW / containerH;
-            if (imageAspect > containerAspect) {
-                renderedW = containerW;
-                renderedH = containerW / imageAspect;
-                offsetX = 0;
-                offsetY = (containerH - renderedH) / 2;
-            } else {
-                renderedH = containerH;
-                renderedW = containerH * imageAspect;
-                offsetX = (containerW - renderedW) / 2;
-                offsetY = 0;
-            }
+
+        const containerRect = grid.getBoundingClientRect();
+        if (containerRect.width < 10 || containerRect.height < 10) {
+            setTimeout(() => this.renderBuilderGrid(), 100);
+            return;
         }
-        BUILDING_SLOTS.forEach(slot => {
-            const cell = document.createElement('div');
-            cell.className = 'builder-cell' + (game.grid[slot.id] ? ' occupied' : '');
-            cell.style.position = 'absolute';
-            cell.style.left = (offsetX + slot.xRatio * renderedW) + 'px';
-            cell.style.top = (offsetY + slot.yRatio * renderedH) + 'px';
-            cell.style.width = (slot.wRatio * renderedW) + 'px';
-            cell.style.height = (slot.hRatio * renderedH) + 'px';
-            cell.dataset.slotId = slot.id;
-            const data = game.grid[slot.id];
-            if (data) {
-                const type = BUILDING_TYPES.find(b => b.id === data.buildingId);
-                if (type) {
-                    cell.innerHTML = `<img src="${type.icon}" alt="${type.name}">
-                        <span class="building-level-badge">Ур. ${data.level}</span>`;
+
+        const naturalWidth = (game.assets && game.assets.background && game.assets.background.naturalWidth > 0) ? game.assets.background.naturalWidth : (bgImg.naturalWidth || 1);
+        const naturalHeight = (game.assets && game.assets.background && game.assets.background.naturalHeight > 0) ? game.assets.background.naturalHeight : (bgImg.naturalHeight || 1);
+        if ((!naturalWidth || !naturalHeight || naturalWidth === 1 || naturalHeight === 1) && !bgImg.complete) {
+            bgImg.onload = () => this.renderBuilderGrid();
+            return;
+        }
+        const imgRect = getContainedImageRect(containerRect, naturalWidth, naturalHeight);
+        const renderSlots = (slots, gridState, types, isDiamond) => {
+            slots.forEach(slot => {
+                const cell = document.createElement('div');
+                cell.className = 'builder-cell' + (gridState[slot.id] ? ' occupied' : '') + (isDiamond ? ' diamond-cell' : '');
+                cell.style.position = 'absolute';
+                cell.style.left = (imgRect.offsetX + slot.xRatio * imgRect.width) + 'px';
+                cell.style.top = (imgRect.offsetY + slot.yRatio * imgRect.height) + 'px';
+                cell.style.width = (slot.wRatio * imgRect.width) + 'px';
+                cell.style.height = (slot.hRatio * imgRect.height) + 'px';
+                cell.dataset.slotId = slot.id;
+                const data = gridState[slot.id];
+                if (data) {
+                    const type = types.find(b => b.id === data.buildingId);
+                    if (type) {
+                        cell.innerHTML = `<img src="${type.icon}" alt="${type.name}">
+                            <span class="building-level-badge">Ур. ${data.level}</span>`;
+                    } else {
+                        const fallback = document.createElement('img');
+                        fallback.src = ASSET_PATHS.currencyIcon;
+                        fallback.alt = 'Unknown';
+                        cell.appendChild(fallback);
+                    }
                 } else {
-                    const fallback = document.createElement('img');
-                    fallback.src = ASSET_PATHS.currencyIcon;
-                    fallback.alt = 'Unknown';
-                    cell.appendChild(fallback);
+                    cell.innerHTML = '<span class="builder-cell-plus">+</span>';
                 }
-            } else {
-                cell.innerHTML = '<span class="builder-cell-plus">+</span>';
-            }
-            cell.addEventListener('click', () => this.handleBuilderCellClick(slot.id));
-            grid.appendChild(cell);
-        });
+                cell.addEventListener('click', () => this.handleBuilderCellClick(slot.id, isDiamond));
+                grid.appendChild(cell);
+            });
+        };
+        renderSlots(BUILDING_SLOTS, game.grid, BUILDING_TYPES, false);
+        renderSlots(DIAMOND_BUILDING_SLOTS, game.diamondGrid || {}, DIAMOND_BUILDINGS, true);
         const wrapper = document.getElementById('builder-grid-wrapper');
         if (wrapper) {
             let hint = wrapper.querySelector('.builder-empty-hint');
@@ -468,90 +515,112 @@ const ui = {
         }
     },
 
-    handleBuilderCellClick(key) {
-        const data = game.grid[key];
+    handleBuilderCellClick(key, isDiamond) {
+        const gridState = isDiamond ? (game.diamondGrid || {}) : game.grid;
+        const data = gridState[key];
         if (data) {
-            this.showBuildingInfo(key, data);
+            this.showBuildingInfo(key, data, isDiamond);
         } else {
-            this.showBuildingMenu(key);
+            this.showBuildingMenu(key, isDiamond);
         }
     },
 
-    showBuildingMenu(cellKey) {
-        const items = BUILDING_TYPES.map(type => {
-            const cost = game.getBuildingCost(type.id, 0);
-            const affordable = game.currency >= cost;
+    showBuildingMenu(cellKey, isDiamond) {
+        const types = isDiamond ? DIAMOND_BUILDINGS : BUILDING_TYPES;
+        const costFn = isDiamond ? (id) => game.getDiamondBuildingCost(id, 0) : (id) => game.getBuildingCost(id, 0);
+        const currency = isDiamond ? game.diamonds : game.currency;
+        const currencyIcon = isDiamond ? ASSET_PATHS.diamondIcon : ASSET_PATHS.currencyIcon;
+        const currencyLabel = isDiamond ? '' : '';
+        const items = types.map(type => {
+            const cost = costFn(type.id);
+            const affordable = currency >= cost;
             return `
-                <div class="building-option">
+                <div class="building-option diamond-option">
                     <img class="building-option-icon" src="${type.icon}" alt="${type.name}">
                     <div class="building-option-info">
                         <div class="building-name">${type.name}</div>
                         <div class="building-desc">${type.description}</div>
-                        <button class="btn btn-buy" data-building="${type.id}" ${affordable ? '' : 'disabled'}>
-                            Построить<br><small>${formatNumber(cost)} <img class="currency-icon-inline" src="${ASSET_PATHS.currencyIcon}" alt=""></small>
+                        <button class="btn btn-diamond-buy" data-building="${type.id}" ${affordable ? '' : 'disabled'}>
+                            Построить<br><small>${formatNumber(cost)} <img class="currency-icon-inline" src="${currencyIcon}" alt=""></small>
                         </button>
                     </div>
                 </div>
             `;
         }).join('');
         this.showModal('Выбери здание', '<div class="buildings-menu">' + items + '</div>');
-        this.attachBuildingHandlers(cellKey);
+        this.attachBuildingMenuHandlers(cellKey, isDiamond);
     },
 
-    attachBuildingHandlers(cellKey) {
-        this.modalOverlay.querySelectorAll('.btn-buy[data-building]').forEach(btn => {
+    attachBuildingMenuHandlers(cellKey, isDiamond) {
+        this.modalOverlay.querySelectorAll('.btn-diamond-buy[data-building]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const buildingId = e.currentTarget.dataset.building;
-                if (game.buildOrUpgrade(cellKey, buildingId)) {
+                const success = isDiamond ? game.buildOrUpgradeDiamond(cellKey, buildingId) : game.buildOrUpgrade(cellKey, buildingId);
+                if (success) {
                     this.closeModal();
-                    this.renderBuilderGrid();
-                    this.updateBuilderCurrency();
-                    this.updateBuilderStats();
+                    setTimeout(() => {
+                        this.renderBuilderGrid();
+                        this.updateBuilderCurrency();
+                        this.updateBuilderStats();
+                    }, 200);
                     playUpgradeSound();
                 }
             });
         });
     },
 
-    showBuildingInfo(cellKey, data) {
-        const type = BUILDING_TYPES.find(b => b.id === data.buildingId);
+    showBuildingInfo(cellKey, data, isDiamond) {
+        const types = isDiamond ? DIAMOND_BUILDINGS : BUILDING_TYPES;
+        const type = types.find(b => b.id === data.buildingId);
         if (!type) return;
-        const nextCost = game.getBuildingCost(type.id, data.level);
-        const canUpgrade = game.currency >= nextCost;
+        const nextCost = isDiamond ? game.getDiamondBuildingCost(type.id, data.level) : game.getBuildingCost(type.id, data.level);
+        const canUpgrade = isDiamond ? game.diamonds >= nextCost : game.currency >= nextCost;
         const body = '<div class="building-info">' +
             '<img class="building-option-icon" src="' + type.icon + '" alt="' + type.name + '">' +
             '<div class="building-name">' + type.name + '</div>' +
             '<div class="building-desc">' + type.description + '</div>' +
             '<div class="building-level">Уровень: ' + data.level + '</div>' +
-            '<button class="btn btn-upgrade" data-cell="' + cellKey + '" ' + (canUpgrade ? '' : 'disabled') + '>Улучшить за ' + formatNumber(nextCost) + ' <img class="currency-icon-inline" src="' + ASSET_PATHS.currencyIcon + '" alt=""></button>' +
-            '<button class="btn btn-reward" data-cell="' + cellKey + '">Снести</button>' +
+            '<button class="btn btn-upgrade" data-cell="' + cellKey + '" data-diamond="' + (isDiamond ? '1' : '0') + '" ' + (canUpgrade ? '' : 'disabled') + '>Улучшить за ' + formatNumber(nextCost) + ' <img class="currency-icon-inline" src="' + (isDiamond ? ASSET_PATHS.diamondIcon : ASSET_PATHS.currencyIcon) + '" alt=""></button>' +
+            '<button class="btn btn-reward" data-cell="' + cellKey + '" data-diamond="' + (isDiamond ? '1' : '0') + '">Снести</button>' +
             '</div>';
         this.showModal(type.name, body);
-        this.attachBuildingInfoHandlers(cellKey);
+        this.attachBuildingInfoHandlers(cellKey, isDiamond);
     },
 
-    attachBuildingInfoHandlers(cellKey) {
-        const upgradeBtn = this.modalOverlay.querySelector('.btn-upgrade[data-cell="' + cellKey + '"]');
+    attachBuildingInfoHandlers(cellKey, isDiamond) {
+        const upgradeBtn = this.modalOverlay.querySelector('.btn-upgrade[data-cell="' + cellKey + '"][data-diamond="' + (isDiamond ? '1' : '0') + '"]');
         if (upgradeBtn) {
             upgradeBtn.addEventListener('click', () => {
-                const data = game.grid[cellKey];
-                if (data && game.buildOrUpgrade(cellKey, data.buildingId)) {
-                    this.closeModal();
-                    this.renderBuilderGrid();
-                    this.updateBuilderCurrency();
-                    this.updateBuilderStats();
-                    playUpgradeSound();
+                const gridState = isDiamond ? (game.diamondGrid || {}) : game.grid;
+                const data = gridState[cellKey];
+                if (data) {
+                    const success = isDiamond ? game.buildOrUpgradeDiamond(cellKey, data.buildingId) : game.buildOrUpgrade(cellKey, data.buildingId);
+                    if (success) {
+                        this.closeModal();
+                        setTimeout(() => {
+                            this.renderBuilderGrid();
+                            this.updateBuilderCurrency();
+                            this.updateBuilderStats();
+                        }, 200);
+                        playUpgradeSound();
+                    }
                 }
             });
         }
-        const demolishBtn = this.modalOverlay.querySelector('.btn-reward[data-cell="' + cellKey + '"]');
+        const demolishBtn = this.modalOverlay.querySelector('.btn-reward[data-cell="' + cellKey + '"][data-diamond="' + (isDiamond ? '1' : '0') + '"]');
         if (demolishBtn) {
             demolishBtn.addEventListener('click', () => {
-                game.demolish(cellKey);
+                if (isDiamond) {
+                    game.demolishDiamond(cellKey);
+                } else {
+                    game.demolish(cellKey);
+                }
                 this.closeModal();
-                this.renderBuilderGrid();
-                this.updateBuilderCurrency();
-                this.updateBuilderStats();
+                setTimeout(() => {
+                    this.renderBuilderGrid();
+                    this.updateBuilderCurrency();
+                    this.updateBuilderStats();
+                }, 200);
             });
         }
     },
@@ -559,5 +628,170 @@ const ui = {
     closeModal() {
         this.modalOverlay.classList.remove('active');
         this.modalOverlay.innerHTML = '';
-    }
+    },
+
+    openAchievements() {
+        if (!window.ACHIEVEMENTS) return;
+        const list = window.ACHIEVEMENTS.map(a => {
+            const unlocked = game.unlockedAchievements.includes(a.id);
+            const status = unlocked ? '✅' : '🔒';
+            const orangeReward = a.reward && a.reward.currency ? formatNumber(a.reward.currency) + ' 🍊' : '';
+            const diamondReward = a.reward && a.reward.diamonds ? formatNumber(a.reward.diamonds) + ' <img class="currency-icon-diamond" src="' + ASSET_PATHS.diamondIcon + '" alt="">' : '';
+            const reward = orangeReward + (orangeReward && diamondReward ? ' ' : '') + diamondReward;
+            return '<div class="achievement-item ' + (unlocked ? 'unlocked' : '') + '">' +
+                '<div class="achievement-icon">' + status + '</div>' +
+                '<div class="achievement-info">' +
+                    '<div class="achievement-name">' + a.name + '</div>' +
+                    '<div class="achievement-desc">' + a.desc + '</div>' +
+                '</div>' +
+                '<div class="achievement-reward">' + reward + '</div>' +
+            '</div>';
+        }).join('');
+        this.showModal('Достижения', '<div class="achievements-list">' + list + '</div>');
+    },
+
+    showAchievementToast(name) {
+        if (!name) return;
+        const toast = document.createElement('div');
+        toast.className = 'achievement-toast';
+        toast.textContent = '🏆 ' + name;
+        document.body.appendChild(toast);
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 400);
+        }, 2500);
+    },
+
+    openLeaderboard() {
+        this.showModal('Лидерборд', 'Лидерборд скоро появится.');
+    },
+
+    openDiamondShop() {
+        const upgradesList = DIAMOND_UPGRADES.map(u => {
+            const level = (game.diamondUpgrades && game.diamondUpgrades[u.id]) || 0;
+            const maxLevel = u.maxLevel || Infinity;
+            const cost = game.getDiamondUpgradeCost(u.id);
+            const affordable = game.diamonds >= cost && level < maxLevel;
+            const maxed = level >= maxLevel;
+            const btnLabel = maxed ? 'Куплено' : 'Купить';
+            const btnClass = maxed ? 'btn btn-buy disabled' : 'btn btn-diamond-buy';
+            return `
+                <div class="diamond-option upgrade-option">
+                    <div class="diamond-option-info">
+                        <div class="diamond-option-name">${u.name}</div>
+                        <div class="diamond-option-desc">${u.description} (ур. ${level}${maxLevel ? '/' + maxLevel : ''})</div>
+                        <button class="${btnClass}" data-upgrade="${u.id}" ${maxed || !affordable ? 'disabled' : ''}>
+                            ${btnLabel}<br><small>${formatNumber(cost)} <img class="currency-icon-diamond" src="${ASSET_PATHS.diamondIcon}" alt=""></small>
+                        </button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        const buildingsList = DIAMOND_BUILDINGS.map(b => {
+            const cost = game.getDiamondBuildingCost(b.id, 0);
+            const affordable = game.diamonds >= cost;
+            return `
+                <div class="diamond-option building-option">
+                    <img class="diamond-option-icon" src="${b.icon}" alt="${b.name}">
+                    <div class="diamond-option-info">
+                        <div class="diamond-option-name">${b.name}</div>
+                        <div class="diamond-option-desc">${b.description}</div>
+                        <button class="btn btn-diamond-buy" data-diamond-building="${b.id}" ${affordable ? '' : 'disabled'}>
+                            Построить<br><small>${formatNumber(cost)} <img class="currency-icon-diamond" src="${ASSET_PATHS.diamondIcon}" alt=""></small>
+                        </button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        const body = `
+            <div class="diamond-tabs">
+                <button class="diamond-tab-btn active" data-tab="upgrades">Улучшения</button>
+                <button class="diamond-tab-btn" data-tab="buildings">Премиум-здания</button>
+            </div>
+            <div class="diamond-tab-content">
+                <div class="diamond-tab-pane active" id="diamond-tab-upgrades">
+                    <div class="diamond-options-list">${upgradesList}</div>
+                </div>
+                <div class="diamond-tab-pane" id="diamond-tab-buildings">
+                    <div class="diamond-options-list">${buildingsList}</div>
+                </div>
+            </div>`;
+
+        this.showModal('Алмазный магазин', body);
+        this.attachDiamondShopHandlers();
+    },
+
+    attachDiamondShopHandlers() {
+        this.modalOverlay.querySelectorAll('.diamond-tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const tab = e.currentTarget.dataset.tab;
+                this.modalOverlay.querySelectorAll('.diamond-tab-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                this.modalOverlay.querySelectorAll('.diamond-tab-pane').forEach(p => p.classList.remove('active'));
+                const pane = document.getElementById('diamond-tab-' + tab);
+                if (pane) pane.classList.add('active');
+            });
+        });
+        this.modalOverlay.querySelectorAll('.btn-diamond-buy[data-upgrade]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const upgradeId = e.currentTarget.dataset.upgrade;
+                if (game.buyDiamondUpgrade(upgradeId)) {
+                    this.closeModal();
+                    this.openDiamondShop();
+                    playUpgradeSound();
+                }
+            });
+        });
+        this.modalOverlay.querySelectorAll('.btn-diamond-buy[data-diamond-building]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const buildingId = e.currentTarget.dataset.diamondBuilding;
+                this.showDiamondBuildingMenu(buildingId);
+            });
+        });
+    },
+
+    showDiamondBuildingMenu(buildingId) {
+        const type = DIAMOND_BUILDINGS.find(b => b.id === buildingId);
+        if (!type) return;
+        const cost = game.getDiamondBuildingCost(type.id, 0);
+        const affordable = game.diamonds >= cost;
+        const body = `
+            <div class="building-info">
+                <img class="building-option-icon" src="${type.icon}" alt="${type.name}">
+                <div class="building-name">${type.name}</div>
+                <div class="building-desc">${type.description}</div>
+                <button class="btn btn-diamond-buy" data-diamond-build="${type.id}" ${affordable ? '' : 'disabled'}>
+                    Построить за ${formatNumber(cost)} <img class="currency-icon-diamond" src="${ASSET_PATHS.diamondIcon}" alt="">
+                </button>
+            </div>`;
+        this.showModal(type.name, body);
+        const buildBtn = this.modalOverlay.querySelector('.btn-diamond-build');
+        if (buildBtn) {
+            buildBtn.addEventListener('click', () => {
+                const cellKey = this.getDiamondBuildingCellKey();
+                if (cellKey && game.buildOrUpgradeDiamond(cellKey, type.id)) {
+                    this.closeModal();
+                    this.updateBuilderCurrency();
+                    this.updateBuilderStats();
+                    playUpgradeSound();
+                }
+            });
+        }
+    },
+
+    getDiamondBuildingCellKey() {
+        const occupied = new Set(Object.keys(game.grid || {}));
+        const diamondOccupied = new Set(Object.keys(game.diamondGrid || {}));
+        const used = new Set([...occupied, ...diamondOccupied]);
+        const allSlots = DIAMOND_BUILDING_SLOTS || [];
+        for (let i = 0; i < allSlots.length; i++) {
+            const key = 'd' + (i + 1);
+            if (!used.has(key)) return key;
+        }
+        return 'd1';
+    },
+
 };

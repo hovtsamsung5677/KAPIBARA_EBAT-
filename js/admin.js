@@ -68,10 +68,13 @@ function adminResetSave() {
     if (!game) return;
     game.currency = 0;
     game.totalCurrency = 0;
+    game.diamonds = 0;
     game.helpers.forEach(h => { h.level = 0; });
     game.clickLevel = 0;
     game.farmSprites = [];
     game.grid = {};
+    game.diamondGrid = {};
+    game.diamondUpgrades = {};
     game.unlockedAchievements = [];
     game.prestigePoints = 0;
     game.prestigeCount = 0;

@@ -15,6 +15,8 @@
     --color-green: #4CAF50;
     --color-green-dark: #388E3C;
     --color-gold: #FFB300;
+    --color-diamond: #29B6F6;
+    --color-diamond-dark: #0288D1;
     --color-cream: #FFF8E1;
     --color-text: #3E2723;
     --color-text-light: #5D4037;
@@ -75,24 +77,6 @@ html, body {
     pointer-events: none;
 }
 
-#builder-btn {
-    position: absolute;
-    top: 16px;
-    right: 176px;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.95);
-    border: 2px solid var(--color-wood);
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 3px 6px rgba(62, 39, 35, 0.25);
-    color: var(--color-text);
-}
-
 #admin-banner {
     display: none;
     position: fixed;
@@ -127,10 +111,6 @@ html, body {
     inset: 0;
     z-index: 60;
     background: #FFF8E1;
-    background-image: url('../assets/background/town_fon.png');
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
     display: flex;
     flex-direction: column;
 }
@@ -198,10 +178,31 @@ html, body {
     justify-content: flex-start;
 }
 
-#builder-grid {
+#builder-stage {
     position: relative;
     width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+#builder-bg-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
     height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#builder-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
 }
 
 .builder-cell {
@@ -234,33 +235,34 @@ html, body {
 }
 
 .builder-cell.occupied {
-    background: rgba(255,248,225,0.9);
-    border: 2px solid var(--color-wood);
-    box-shadow: 0 3px 0 rgba(62,39,35,0.15);
+    background: transparent;
+    border: none;
+    box-shadow: none;
 }
 
 .builder-cell.occupied::after {
     display: none;
 }
 
-.builder-cell img {
-    width: 70%;
-    height: 70%;
+.builder-cell.occupied img {
+    width: 170%;
+    height: 170%;
     object-fit: contain;
+    filter: drop-shadow(0 6px 4px rgba(62, 39, 35, 0.35));
 }
 
 .builder-cell .building-level-badge {
     position: absolute;
     bottom: 2px;
-    right: 4px;
+    left: 50%;
+    transform: translateX(-50%);
     background: var(--color-wood);
     color: var(--color-cream);
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: bold;
-    padding: 1px 5px;
+    padding: 1px 6px;
     border-radius: 8px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.25);
 }
 
 .builder-empty-hint {
@@ -269,79 +271,6 @@ html, body {
     font-size: 0.95rem;
     padding: 16px;
     opacity: 0.85;
-}
-
-.builder-cell {
-    background: #C5E1A5;
-    border: 2px solid #AED581;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    cursor: pointer;
-}
-
-.builder-cell.occupied {
-    background: #FFF8E1;
-    border-color: var(--color-wood);
-}
-
-.builder-cell img {
-    width: 70%;
-    height: 70%;
-    object-fit: contain;
-}
-
-.builder-cell .building-level-badge {
-    position: absolute;
-    bottom: 2px;
-    right: 4px;
-    background: var(--color-wood);
-    color: var(--color-cream);
-    font-size: 0.7rem;
-    font-weight: bold;
-    padding: 1px 5px;
-    border-radius: 8px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-}
-
-.builder-empty-hint {
-    text-align: center;
-    color: var(--color-text-light);
-    font-size: 0.95rem;
-    padding: 16px;
-    opacity: 0.85;
-}
-
-@media (max-width: 600px) {
-    #helpers-panel {
-        width: 140px;
-        max-width: 140px;
-        max-height: 35vh;
-        padding: 8px;
-    }
-    .helper-card {
-        flex-direction: column;
-        gap: 6px;
-        padding: 8px;
-    }
-    .helper-name { font-size: 0.85rem; }
-    .helper-level { font-size: 0.75rem; }
-    .helper-income { font-size: 0.75rem; }
-    .helper-actions { gap: 4px; }
-    .btn { padding: 6px 8px; font-size: 0.8rem; min-width: 36px; min-height: 36px; }
-    #currency-panel { min-width: 160px; }
-    #currency-count { font-size: 1.4rem; }
-    #reward-panel { right: 8px; top: 100px; gap: 6px; }
-    #sound-btn { right: 8px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
-    #achievements-btn { right: 52px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
-    #leaderboard-btn { right: 96px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
-    #builder-btn { right: 140px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
-    #builder-grid { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); }
-    #builder-title { font-size: 1rem; }
-    #builder-stats { font-size: 0.75rem; }
 }
 
 .loader-content {
@@ -362,6 +291,15 @@ html, body {
 }
 
 .currency-icon-inline { width: 14px; height: 14px; vertical-align: -2px; object-fit: contain; }
+
+    .currency-icon-diamond {
+        width: 20px;
+        height: 20px;
+        vertical-align: -3px;
+        object-fit: contain;
+        image-rendering: auto;
+        filter: drop-shadow(0 0 3px rgba(41, 182, 246, 0.6));
+    }
 
 .buildings-menu {
     display: flex;
@@ -464,6 +402,188 @@ html, body {
     margin-top: 4px;
 }
 
+#diamond-panel {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    min-width: 150px;
+    background: linear-gradient(135deg, var(--color-diamond), #4DD0E1);
+    color: #FFF;
+    border: 3px solid var(--color-diamond-dark);
+    border-radius: 14px;
+    padding: 10px 16px;
+    box-shadow: 0 6px 0 var(--color-diamond-dark), 0 8px 12px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    z-index: 5;
+}
+
+#diamond-count {
+    font-size: 1.5rem;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #FFF;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+    white-space: nowrap;
+}
+
+.currency-icon-diamond {
+    width: 26px;
+    height: 26px;
+    vertical-align: -4px;
+    object-fit: contain;
+    image-rendering: auto;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+
+#diamond-btn {
+    border-radius: 50%;
+    background: rgba(41, 182, 246, 0.95);
+    border: 2px solid var(--color-diamond-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+    padding: 0;
+    overflow: hidden;
+    width: 52px;
+    height: 52px;
+    position: absolute;
+    top: 70px;
+    right: 16px;
+}
+
+.diamond-btn-icon {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    image-rendering: auto;
+    filter: drop-shadow(0 0 4px rgba(41, 182, 246, 0.7));
+}
+
+.btn-diamond-ad {
+    background: linear-gradient(135deg, var(--color-diamond), #4DD0E1);
+    border-radius: 20px;
+    box-shadow: 0 4px 0 var(--color-diamond-dark);
+    color: #FFF;
+}
+
+.btn-diamond-buy {
+    background: linear-gradient(135deg, var(--color-diamond), #4DD0E1);
+    border-radius: 12px;
+    box-shadow: 0 4px 0 var(--color-diamond-dark);
+    color: #FFF;
+}
+
+.diamond-tab {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.diamond-tab-btn {
+    flex: 1;
+    background: #E3F2FD;
+    border: 2px solid var(--color-diamond);
+    border-radius: 10px;
+    padding: 10px;
+    font-weight: bold;
+    color: var(--color-diamond-dark);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.diamond-tab-btn.active {
+    background: var(--color-diamond);
+    color: #FFF;
+}
+
+.diamond-tab-content {
+    text-align: left;
+}
+
+.diamond-tab-pane {
+    display: none;
+}
+
+.diamond-tab-pane.active {
+    display: block;
+}
+
+.diamond-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.diamond-option {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: #E1F5FE;
+    border: 2px solid var(--color-diamond);
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.diamond-option.upgrade-option {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.diamond-option-icon {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.diamond-option-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.diamond-option-name {
+    font-weight: bold;
+    color: var(--color-text);
+}
+
+.diamond-option-desc {
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+    margin: 4px 0;
+}
+
+.builder-diamonds {
+    color: var(--color-diamond);
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+.diamond-cell {
+    background: radial-gradient(circle at 30% 30%, rgba(178, 235, 248, 0.95), rgba(144, 202, 240, 0.95));
+    border: 2px dashed var(--color-diamond);
+}
+
+.diamond-cell.occupied {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.diamond-cell.occupied::after {
+    display: none;
+}
+
+.diamond-cell.occupied img {
+    width: 170%;
+    height: 170%;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 4px rgba(2, 136, 209, 0.4));
+}
+
 #helpers-panel {
     position: absolute;
     left: 16px;
@@ -498,11 +618,16 @@ html, body {
     .btn { padding: 6px 8px; font-size: 0.8rem; min-width: 36px; min-height: 36px; }
     #currency-panel { min-width: 160px; }
     #currency-count { font-size: 1.4rem; }
-    #reward-panel { right: 8px; top: 100px; gap: 6px; }
-    #sound-btn { right: 8px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
-    #achievements-btn { right: 52px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
-    #leaderboard-btn { right: 96px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
-    #builder-btn { right: 140px; top: 8px; width: 36px; height: 36px; font-size: 1rem; }
+    #reward-panel { right: 8px; top: 340px; gap: 6px; }
+    #sound-btn { right: 8px; top: 8px; width: 40px; height: 40px; font-size: 1.1rem; }
+    #achievements-btn { right: 8px; top: 72px; width: 40px; height: 40px; font-size: 1.1rem; }
+    #leaderboard-btn { right: 8px; top: 132px; width: 40px; height: 40px; font-size: 1.1rem; }
+    #builder-btn { right: 8px; top: 192px; width: 40px; height: 40px; font-size: 1.1rem; }
+    #diamond-btn { right: 8px; top: 128px; width: 40px; height: 40px; }
+    #diamond-btn .diamond-btn-icon { width: 24px; height: 24px; }
+    #diamond-panel { right: 8px; top: 8px; min-width: 110px; padding: 6px 10px; }
+    #diamond-count { font-size: 1.15rem; }
+    #diamond-count .currency-icon-diamond { width: 20px; height: 20px; vertical-align: -3px; }
     #builder-grid { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); }
 }
 
@@ -702,7 +827,7 @@ html, body {
 
 #reward-panel {
     position: absolute;
-    top: 120px;
+    top: 416px;
     right: 16px;
     display: flex;
     flex-direction: column;
@@ -713,12 +838,12 @@ html, body {
     position: absolute;
     top: 16px;
     right: 16px;
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: rgba(255,255,255,0.95);
     border: 2px solid var(--color-wood);
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -775,14 +900,14 @@ html, body {
 
 #achievements-btn {
     position: absolute;
-    top: 16px;
-    right: 68px;
-    width: 44px;
-    height: 44px;
+    top: 144px;
+    right: 16px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: rgba(255,255,255,0.95);
     border: 2px solid var(--color-wood);
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -793,14 +918,14 @@ html, body {
 
 #leaderboard-btn {
     position: absolute;
-    top: 16px;
-    right: 120px;
-    width: 44px;
-    height: 44px;
+    top: 212px;
+    right: 16px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: rgba(255,255,255,0.95);
     border: 2px solid var(--color-wood);
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -811,14 +936,14 @@ html, body {
 
 #builder-btn {
     position: absolute;
-    top: 16px;
-    right: 176px;
-    width: 44px;
-    height: 44px;
+    top: 280px;
+    right: 16px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: rgba(255,255,255,0.95);
     border: 2px solid var(--color-wood);
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -834,6 +959,9 @@ html, body {
 }
 
 .achievement-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 10px;
     border-radius: 10px;
     margin-bottom: 8px;
@@ -846,14 +974,38 @@ html, body {
     border-color: var(--color-green);
 }
 
+.achievement-item:not(.unlocked) {
+    opacity: 0.6;
+}
+
+.achievement-icon {
+    font-size: 1.5rem;
+    width: 36px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.achievement-info {
+    flex: 1;
+    min-width: 0;
+}
+
 .achievement-name {
     font-weight: bold;
+    font-size: 0.95rem;
     color: var(--color-text);
 }
 
 .achievement-desc {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--color-text-light);
+}
+
+.achievement-reward {
+    font-size: 0.8rem;
+    color: var(--color-orange);
+    font-weight: bold;
+    white-space: nowrap;
 }
 
 .leaderboard-list {

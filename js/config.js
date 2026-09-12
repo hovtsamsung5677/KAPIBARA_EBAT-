@@ -27,7 +27,12 @@ const ASSET_PATHS = {
         capy_boss: 'assets/characters/helper-boss.png'
     },
     goldenEvent: 'assets/characters/golden-event.png',
+    diamondCapybara: 'assets/characters/dimond_capibara.png',
+    diamondGreenhouse: 'assets/houses/dimond_teplica.png',
+    diamondTower: 'assets/houses/dimond_tower.png',
+    diamondPalace: 'assets/houses/custle.png',
     background: 'assets/background/farm-bg.png',
     currencyIcon: 'assets/ui/currency-icon.png',
+    diamondIcon: 'assets/images/dimond.png',
     loadingImage: 'assets/ui/loading.png'
 };

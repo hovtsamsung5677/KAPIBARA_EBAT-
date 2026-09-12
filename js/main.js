@@ -69,6 +69,19 @@ function initGame() {
                     playUpgradeSound();
                 }
             }
+            if (game.diamondCapybaraEvent && game.diamondCapybaraEvent.active) {
+                const ev = game.diamondCapybaraEvent;
+                const ddx = x - ev.x;
+                const ddy = y - ev.y;
+                if (ddx * ddx + ddy * ddy < 45 * 45) {
+                    game.claimDiamondCapybara();
+                    showRewardedVideo(() => {
+                        game.diamonds += 10;
+                        playUpgradeSound();
+                        ui.update(game.currency, game.getPassiveIncome());
+                    });
+                }
+            }
         });
         requestAnimationFrame(gameLoop);
         setInterval(() => game.save(), 30000);

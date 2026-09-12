@@ -89,6 +89,13 @@ class Game {
         this.onboardingStep = 0;
         this.onboardingDone = false;
         this.grid = {};
+        this.diamonds = 0;
+        this.lastDiamondAdTime = 0;
+        this.diamondUpgrades = {};
+        this.diamondGrid = {};
+        this.diamondCapybaraEvent = null;
+        this.lastDiamondCapybaraSpawnTime = 0;
+        this.diamondCapybaraSpawnCooldown = 90000 + Math.random() * 60000;
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
@@ -222,7 +229,13 @@ class Game {
     }
 
     getClickValue() {
-        return GAME_CONFIG.clickValue * (1 + this.clickLevel * 0.5) * this.getPrestigeMultiplier();
+        let value = GAME_CONFIG.clickValue * (1 + this.clickLevel * 0.5) * this.getPrestigeMultiplier();
+        const du = this.diamondUpgrades || {};
+        if (du.click_boost > 0) {
+            const upgrade = DIAMOND_UPGRADES.find(u => u.id === 'click_boost');
+            value *= (1 + du.click_boost * upgrade.effect.value);
+        }
+        return value;
     }
 
     getClickUpgradeCost() {
@@ -374,6 +387,60 @@ class Game {
         }
     }
 
+    getDiamondUpgradeCost(upgradeId) {
+        const upgrade = DIAMOND_UPGRADES.find(u => u.id === upgradeId);
+        if (!upgrade) return Infinity;
+        const currentLevel = (this.diamondUpgrades && this.diamondUpgrades[upgradeId]) || 0;
+        if (upgrade.maxLevel && currentLevel >= upgrade.maxLevel) return Infinity;
+        return Math.floor(upgrade.baseCost * Math.pow(upgrade.costGrowth, currentLevel));
+    }
+
+    buyDiamondUpgrade(upgradeId) {
+        const upgrade = DIAMOND_UPGRADES.find(u => u.id === upgradeId);
+        if (!upgrade) return false;
+        const currentLevel = (this.diamondUpgrades && this.diamondUpgrades[upgradeId]) || 0;
+        if (upgrade.maxLevel && currentLevel >= upgrade.maxLevel) return false;
+        const cost = this.getDiamondUpgradeCost(upgradeId);
+        if (this.diamonds < cost) return false;
+        this.diamonds -= cost;
+        this.diamondUpgrades = this.diamondUpgrades || {};
+        this.diamondUpgrades[upgradeId] = currentLevel + 1;
+        return true;
+    }
+
+    getDiamondBuildingCost(buildingId, currentLevel) {
+        const type = DIAMOND_BUILDINGS.find(b => b.id === buildingId);
+        if (!type) return Infinity;
+        return Math.floor(type.diamondCost * Math.pow(type.costGrowth, currentLevel));
+    }
+
+    buildOrUpgradeDiamond(cellKey, buildingId) {
+        const current = this.diamondGrid && this.diamondGrid[cellKey];
+        const nextLevel = current && current.buildingId === buildingId ? current.level + 1 : 1;
+        const cost = window.isAdminMode ? 0 : this.getDiamondBuildingCost(buildingId, current ? current.level : 0);
+        if (this.diamonds < cost) return false;
+        this.diamonds -= cost;
+        this.diamondGrid = this.diamondGrid || {};
+        this.diamondGrid[cellKey] = { buildingId, level: nextLevel };
+        return true;
+    }
+
+    demolishDiamond(cellKey) {
+        if (this.diamondGrid && this.diamondGrid[cellKey]) {
+            delete this.diamondGrid[cellKey];
+        }
+    }
+
+    getDiamondAdCooldownMs() {
+        const du = this.diamondUpgrades || {};
+        const base = GAME_CONFIG.fullscreenAdCooldownMs;
+        if (du.ad_cooldown_cut > 0) {
+            const upgrade = DIAMOND_UPGRADES.find(u => u.id === 'ad_cooldown_cut');
+            return Math.floor(base * (1 - upgrade.effect.value));
+        }
+        return base;
+    }
+
     getBuildingIncomeMultiplier() {
         let bonus = 0;
         for (const cell of Object.values(this.grid)) {
@@ -449,6 +516,36 @@ class Game {
         });
     }
 
+    spawnDiamondCapybara() {
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const edge = Math.floor(Math.random() * 4);
+        let x, y;
+        if (edge === 0) { x = Math.random() * w; y = -30; }
+        else if (edge === 1) { x = w + 30; y = Math.random() * h; }
+        else if (edge === 2) { x = Math.random() * w; y = h + 30; }
+        else { x = -30; y = Math.random() * h; }
+
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 25;
+        this.diamondCapybaraEvent = {
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            spawnTime: Date.now(),
+            wobblePhase: Math.random() * Math.PI * 2,
+            active: true
+        };
+        this.lastDiamondCapybaraSpawnTime = Date.now();
+        this.diamondCapybaraSpawnCooldown = 90000 + Math.random() * 60000;
+    }
+
+    claimDiamondCapybara() {
+        if (!this.diamondCapybaraEvent || !this.diamondCapybaraEvent.active) return false;
+        this.diamondCapybaraEvent = null;
+        return true;
+    }
+
     getPassiveIncome() {
         let income = 0;
         for (const helper of this.helpers) {
@@ -458,7 +555,29 @@ class Game {
             income *= GAME_CONFIG.rewardedMultiplier;
         }
         const buildingMult = 1 + this.getBuildingIncomeMultiplier();
-        return income * buildingMult * this.getPrestigeMultiplier();
+        const diamondMult = 1 + this.getDiamondBuildingIncomeMultiplier() + this.getDiamondUpgradeIncomeMultiplier();
+        return income * buildingMult * diamondMult * this.getPrestigeMultiplier();
+    }
+
+    getDiamondBuildingIncomeMultiplier() {
+        let bonus = 0;
+        for (const cell of Object.values(this.diamondGrid || {})) {
+            const type = DIAMOND_BUILDINGS.find(b => b.id === cell.buildingId);
+            if (type && type.effectPerLevel && type.effectPerLevel.type === 'incomeMultiplier') {
+                bonus += type.effectPerLevel.value * cell.level;
+            }
+        }
+        return bonus;
+    }
+
+    getDiamondUpgradeIncomeMultiplier() {
+        const du = this.diamondUpgrades || {};
+        let bonus = 0;
+        if (du.income_boost > 0) {
+            const upgrade = DIAMOND_UPGRADES.find(u => u.id === 'income_boost');
+            bonus += du.income_boost * upgrade.effect.value;
+        }
+        return bonus;
     }
 
     update(deltaTime) {
@@ -488,6 +607,23 @@ class Game {
             }
         }
         this.trySpawnGoldenEvent();
+        if (!this.diamondCapybaraEvent && Date.now() - this.lastDiamondCapybaraSpawnTime > this.diamondCapybaraSpawnCooldown) {
+            this.spawnDiamondCapybara();
+        }
+        if (this.diamondCapybaraEvent && this.diamondCapybaraEvent.active) {
+            const ev = this.diamondCapybaraEvent;
+            const elapsed = Date.now() - ev.spawnTime;
+            if (elapsed > 30000) {
+                this.diamondCapybaraEvent = null;
+            } else {
+                ev.wobblePhase += deltaTime * 2;
+                ev.x += ev.vx * deltaTime + Math.sin(ev.wobblePhase) * 8 * deltaTime;
+                ev.y += ev.vy * deltaTime + Math.cos(ev.wobblePhase * 0.7) * 8 * deltaTime;
+                const margin = 40;
+                if (ev.x < margin || ev.x > this.canvas.width - margin) ev.vx *= -1;
+                if (ev.y < margin || ev.y > this.canvas.height - margin) ev.vy *= -1;
+            }
+        }
         this.generateDailyQuests();
         const now = Date.now();
         if (now - this.lastClickTime > 500) {
@@ -609,6 +745,40 @@ class Game {
             ctx.font = size + 'px serif';
             ctx.fillText('🐹', this.cx, this.cy);
         }
+        if (this.diamondCapybaraEvent && this.diamondCapybaraEvent.active) {
+            const ev = this.diamondCapybaraEvent;
+            const pulse = 1 + Math.sin(Date.now() / 200) * 0.08;
+            const dcSize = 70 * pulse;
+            ctx.save();
+            ctx.shadowColor = '#29B6F6';
+            ctx.shadowBlur = 20;
+            const dcImg = this.assets.diamondCapybara;
+            if (dcImg) {
+                this.drawCentered(ctx, dcImg, ev.x, ev.y, dcSize);
+            } else {
+                ctx.fillStyle = '#29B6F6';
+                ctx.beginPath();
+                ctx.arc(ev.x, ev.y, dcSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+                const fallbackImg = this.assets.diamondIcon;
+                if (fallbackImg) {
+                    this.drawCentered(ctx, fallbackImg, ev.x, ev.y, dcSize * 0.6);
+                } else {
+                    ctx.fillStyle = '#FFF';
+                    ctx.font = 'bold ' + Math.max(10, dcSize * 0.3) + 'px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('💎', ev.x, ev.y);
+                }
+            }
+            ctx.restore();
+            const remaining = 1 - (Date.now() - ev.spawnTime) / 30000;
+            ctx.strokeStyle = 'rgba(41, 182, 246, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(ev.x, ev.y, dcSize / 2 + 8, -Math.PI / 2, -Math.PI / 2 + remaining * Math.PI * 2);
+            ctx.stroke();
+        }
         for (const p of this.clickParticles) {
             ctx.globalAlpha = Math.max(0, p.life);
             ctx.font = p.crit ? 'bold 30px sans-serif' : '24px sans-serif';
@@ -653,6 +823,10 @@ class Game {
             lastQuestDate: this.lastQuestDate,
             onboardingDone: this.onboardingDone,
             grid: this.grid,
+            diamonds: this.diamonds,
+            lastDiamondAdTime: this.lastDiamondAdTime,
+            diamondUpgrades: this.diamondUpgrades,
+            diamondGrid: this.diamondGrid,
             lastSaveTime: Date.now()
         };
         await savePlayerData(data);
@@ -693,6 +867,10 @@ class Game {
         } else {
             this.grid = savedGrid;
         }
+        this.diamonds = data.diamonds || 0;
+        this.lastDiamondAdTime = data.lastDiamondAdTime || 0;
+        this.diamondUpgrades = data.diamondUpgrades || {};
+        this.diamondGrid = data.diamondGrid || {};
         this.updateDailyLogin();
         if (data.helpers && Array.isArray(data.helpers)) {
             for (const saved of data.helpers) {
@@ -722,6 +900,11 @@ class Game {
         return amount;
     }
 
+    isAutoOfflineCollect() {
+        const du = this.diamondUpgrades || {};
+        return du.auto_offline >= 1;
+    }
+
     checkAchievements() {
         if (!window.ACHIEVEMENTS) return;
         const values = {
@@ -733,12 +916,13 @@ class Game {
             prestigeCount: this.prestigeCount || 0,
             clickUpgrades: this.clickUpgradeCount
         };
-        for (const ach of ACHIEVEMENTS) {
+        for (const ach of window.ACHIEVEMENTS || []) {
             if (this.unlockedAchievements.includes(ach.id)) continue;
             const val = values[ach.type];
             if (val !== undefined && val >= ach.target) {
                 this.unlockedAchievements.push(ach.id);
                 this.currency += ach.reward.currency;
+                this.diamonds += (ach.reward.diamonds || 0);
                 ui.showAchievementToast(ach.name);
             }
         }
